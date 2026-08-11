@@ -118,10 +118,17 @@ function installPackage(painter) {
 async function install() {
   const painter = createPainter(supportsColor());
   const current = readUserConfig();
+  const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
 
-  printBrand(painter, packageInfo.version, 'Instalación premium para Windows.');
+  printBrand(painter, packageInfo.version, 'Instalación para Windows.');
   console.log(`  ${painter.bold('Configura tu identidad de GitHub')}`);
-  console.log(`  ${painter.dim('XClone usará este usuario cuando no envíes --user.')}\n`);
+  console.log(`  ${painter.dim('xClone usará este usuario cuando no envíes --user.')}\n`);
+
+  if (!Number.isInteger(nodeMajor) || nodeMajor < 18) {
+    throw new Error(
+      `Node.js ${process.versions.node} no es compatible. Instala Node.js 18 o superior.`
+    );
+  }
 
   if (!checkCommand('npm', ['--version'])) {
     throw new Error('npm no está disponible. Reinstala Node.js incluyendo npm.');
@@ -136,7 +143,7 @@ async function install() {
   printStep(painter, 3, 3, 'Preferencias guardadas');
 
   const ghReady = checkCommand('gh', ['--version']);
-  printResultCard(painter, `XClone ${packageInfo.version} está listo`, [
+  printResultCard(painter, `xClone ${packageInfo.version} está listo`, [
     `Usuario predeterminado: @${saved.user}`,
     ghReady ? 'GitHub CLI detectado.' : 'Pendiente: instala GitHub CLI (gh).',
     'Siguiente paso: xclone --doctor'

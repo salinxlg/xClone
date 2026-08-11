@@ -1,59 +1,133 @@
-# XClone 7.1.0
+<div align="center">
 
-XClone convierte el flujo repetitivo de clonar un repositorio y borrar su
-carpeta `.git` en un solo comando. El instalador pregunta qué usuario u
-organización de GitHub quieres usar y lo conserva como propietario
-predeterminado.
+  <img src="https://cdn-icons-png.flaticon.com/512/9168/9168217.png" alt="xClone Logo" width="80" height="80">
 
-La interfaz incluye colores, jerarquías tipográficas, paneles, progreso por
-fases y una animación activa durante la clonación. No muestra porcentajes
-falsos: cada barra representa pasos que realmente terminaron.
+</div>
 
-## Requisitos
+<h1 align="center">xClone Repository CLI</h1>
 
-- Windows 10 u 11.
-- Node.js 18 o posterior.
+<div align="center">
+
+<br>
+
+<b>xClone</b> es una herramienta de línea de comandos diseñada para simplificar la clonación de repositorios de GitHub, eliminar automáticamente los metadatos de Git cuando se necesita una copia limpia y conservar el historial completo cuando el proyecto será utilizado como repositorio de trabajo.<br><br>
+
+Incluye configuración persistente del propietario de GitHub, instalación interactiva, perfiles de clonación, validaciones de seguridad, colores, paneles, progreso por fases y una animación activa durante la descarga del repositorio.<br><br>
+
+Este proyecto ha sido desarrollado por <a href="https://github.com/salinxlg">Roger Salinas</a>.<br>
+<b>xClone está optimizado para Windows 10 y Windows 11 mediante Node.js y Batch.</b>
+
+<br>
+
+</div>
+
+## Inicio rápido
+
+Descarga y extrae el paquete completo de xClone. Después, ejecuta el instalador:
+
+```powershell
+.\install.cmd
+```
+
+Durante la instalación, el sistema solicitará el usuario u organización de GitHub que será utilizado como propietario predeterminado.
+
+Cuando la instalación termine, abre una terminal nueva y ejecuta:
+
+```powershell
+xclone --doctor
+```
+
+Si todos los requisitos están disponibles, puedes realizar el primer clon:
+
+```powershell
+xclone nombre-del-repositorio
+```
+
+xClone también puede instalarse manualmente desde la carpeta extraída:
+
+```powershell
+npm install -g .
+```
+
+<br>
+
+## Estructura y distribución del proyecto
+
+A continuación se presenta la estructura general de xClone:
+
+```text
+xClone/
+├── bin/
+│   ├── install.js
+│   └── xclone.js
+│
+├── lib/
+│   └── ui.js
+│
+├── test/
+│   └── xclone.test.js
+│
+├── install.cmd
+├── uninstall.cmd
+├── xclone.cmd
+├── package.json
+└── README.md
+```
+
+- `bin/xclone.js` contiene el motor principal del CLI.
+- `bin/install.js` controla la instalación interactiva y la selección del usuario.
+- `lib/ui.js` contiene la interfaz, colores, paneles, barras y animaciones.
+- `install.cmd` inicia el instalador desde Windows.
+- `xclone.cmd` permite ejecutar xClone directamente en modo portable.
+- `uninstall.cmd` elimina el comando global instalado mediante npm.
+- `test/xclone.test.js` contiene las pruebas automatizadas del proyecto.
+
+<br><br>
+
+## Configuración antes de comenzar
+
+Antes de clonar repositorios, es necesario tener instalados los siguientes componentes:
+
+- Node.js `18` o superior.
+- npm.
 - Git.
-- GitHub CLI (`gh`) con una sesión iniciada mediante `gh auth login`.
+- GitHub CLI (`gh`).
+- Una sesión activa de GitHub CLI.
 
-## Instalación
-
-1. Extrae el ZIP completo.
-2. Ejecuta `install.cmd`.
-3. Escribe tu usuario u organización de GitHub cuando se solicite.
-4. Abre una terminal nueva.
-5. Ejecuta `xclone --doctor`.
-
-El instalador tiene su propia interfaz interactiva y registra `xclone`
-globalmente mediante npm. Normalmente no necesita permisos de administrador.
-
-## Uso rápido
-
-Clonar desde el usuario elegido durante la instalación y borrar `.git`:
+Para iniciar sesión en GitHub CLI, ejecuta:
 
 ```powershell
-xclone dexkit
+gh auth login
 ```
 
-Clonar el proyecto completo y conservar `.git`:
+Después puedes comprobar el entorno completo mediante:
 
 ```powershell
-xclone dexkit store
+xclone --doctor
 ```
 
-Usar temporalmente otra cuenta, sin cambiar la preferencia guardada:
+El diagnóstico revisa Node.js, Git, GitHub CLI, la autenticación y el usuario predeterminado configurado.
 
-```powershell
-xclone dexkit --user=otro-usuario
+<br>
+
+## Configuración del usuario de GitHub
+
+El usuario elegido durante la instalación se almacena en Windows dentro de:
+
+```text
+%APPDATA%\Dexly\xClone\config.json
 ```
 
-Los modificadores se pueden combinar:
+El archivo contiene una estructura similar a la siguiente:
 
-```powershell
-xclone api-helper store --user=otra-cuenta --branch=develop --to=api-local
+```json
+{
+  "schemaVersion": 1,
+  "defaultUser": "salinxlg"
+}
 ```
 
-## Usuario predeterminado
+No es necesario modificar este archivo manualmente. xClone incluye comandos para consultar, cambiar o restablecer la configuración.
 
 Consultar el usuario actual:
 
@@ -61,83 +135,419 @@ Consultar el usuario actual:
 xclone config
 ```
 
-Cambiarlo permanentemente:
+Cambiar el usuario predeterminado:
 
 ```powershell
 xclone config otro-usuario
 ```
 
-También puedes usar:
+También puede utilizarse la sintaxis:
 
 ```powershell
 xclone config --user=otro-usuario
+```
+
+Restablecer el propietario inicial `salinxlg`:
+
+```powershell
 xclone config --reset
 ```
 
-`--reset` restaura `salinxlg` como valor inicial.
+<br><br>
 
-## Comandos y opciones
+## Conexión con GitHub
 
-| Comando u opción | Resultado |
-| --- | --- |
-| `xclone <repo>` | Clon superficial desde el usuario guardado y elimina `.git`. |
-| `xclone <repo> store` | Conserva `.git` y el historial completo. |
-| `xclone config <usuario>` | Cambia el propietario predeterminado. |
-| `--user=<usuario>` / `-u` | Cambia de propietario solo para ese clon. |
-| `--store` / `--keep-git` | Otra forma de activar el modo `store`. |
-| `--to=<carpeta>` / `-d` | Define otra carpeta o ruta de destino. |
-| `--branch=<rama>` / `-b` | Selecciona una rama concreta. |
-| `--dry-run` | Simula y muestra el comando sin cambiar archivos. |
-| `--verbose` | Muestra directamente la salida completa de GitHub CLI. |
-| `--no-animation` | Desactiva las animaciones conservando el progreso. |
-| `--no-color` | Desactiva la paleta de colores. |
-| `--doctor` | Revisa Node.js, Git, GitHub CLI y autenticación. |
-| `--version` / `-v` | Muestra la versión de XClone. |
-| `--developer` | Muestra la autoría de la herramienta. |
-| `--help` / `-h` | Muestra la ayuda completa. |
+xClone utiliza la sesión existente de GitHub CLI para acceder a repositorios públicos o privados.
 
-## Interfaz premium
-
-- Banner compacto con identidad XClone.
-- Paleta magenta, violeta y cyan compatible con Windows Terminal.
-- Tipografía de terminal en niveles bold, italic y dim.
-- Indicador animado mientras el proceso `gh repo clone` sigue activo.
-- Progreso de tres fases: validación, descarga y preparación final.
-- Panel final con modo, resultado y ubicación del proyecto.
-- Degradación automática a texto sencillo cuando la terminal no admite color o
-  animaciones.
-
-## Protecciones incluidas
-
-- Nunca reemplaza ni limpia una carpeta de destino existente.
-- Ejecuta GitHub CLI sin interpretar los argumentos del repositorio como
-  comandos.
-- Valida el nombre del repositorio y del propietario.
-- Solo elimina `.git` dentro del destino que acaba de clonar.
-- Si GitHub CLI falla, conserva cualquier carpeta parcial para inspeccionarla.
-- El modo normal usa un clon superficial para descargar menos historial.
-- La salida técnica de GitHub se conserva y aparece si la clonación falla.
-
-## Modo portable
-
-También puedes ejecutar `xclone.cmd` directamente desde la carpeta extraída,
-sin instalar el comando global:
+Internamente, una clonación utiliza una operación equivalente a:
 
 ```powershell
-.\xclone.cmd dexkit
+gh repo clone usuario/repositorio destino
 ```
 
-La configuración del usuario funciona también en modo portable.
+Los argumentos se envían directamente a GitHub CLI sin ser interpretados como comandos adicionales del sistema. El nombre del propietario, repositorio, rama y destino se validan antes de iniciar el proceso.
+
+<br>
+
+## API y comandos del CLI
+
+xClone expone sus operaciones mediante el comando global `xclone`:
+
+```powershell
+xclone operacion
+```
+
+Actualmente incluye los siguientes comandos:
+
+- `xclone <repo>` → Clona un repositorio como copia limpia y elimina `.git`.
+- `xclone <repo> store` → Clona el repositorio y conserva `.git` junto con su historial.
+- `xclone config` → Muestra el usuario predeterminado.
+- `xclone config <usuario>` → Guarda un nuevo propietario predeterminado.
+- `xclone --doctor` → Comprueba el entorno y la autenticación.
+- `xclone --version` → Devuelve la versión instalada.
+- `xclone --developer` → Muestra la información del desarrollador.
+- `xclone --help` → Muestra la documentación integrada del CLI.
+
+<br><br>
+
+## Proceso de clonación
+
+El modo normal se inicia enviando únicamente el nombre del repositorio:
+
+```powershell
+xclone dexkit
+```
+
+xClone realiza automáticamente el siguiente proceso:
+
+1. Obtiene el usuario guardado durante la instalación.
+2. Valida el nombre del repositorio y la carpeta de destino.
+3. Comprueba que GitHub CLI se encuentre disponible.
+4. Ejecuta una clonación superficial para descargar menos historial.
+5. Espera a que GitHub CLI finalice correctamente.
+6. Elimina únicamente el `.git` del destino recién clonado.
+7. Presenta el resultado y la ubicación del proyecto.
+
+El resultado es una copia independiente que puede integrarse dentro de otro proyecto sin conservar el repositorio original como origen remoto.
+
+<br>
+
+### Modo Store
+
+Cuando el repositorio será utilizado como proyecto completo, debe agregarse el modificador `store`:
+
+```powershell
+xclone dexkit store
+```
+
+Este modo conserva:
+
+- La carpeta `.git`.
+- El historial completo de commits.
+- Las ramas y referencias descargadas por Git.
+- La conexión del repositorio con GitHub.
+
+También puede activarse mediante:
+
+```powershell
+xclone dexkit --store
+xclone dexkit --keep-git
+```
+
+<br>
+
+### Clonar desde otro usuario
+
+Para utilizar temporalmente otro usuario u organización sin modificar la configuración guardada:
+
+```powershell
+xclone dexkit --user=otro-usuario
+```
+
+El cambio aplica únicamente a esa operación.
+
+<br>
+
+### Seleccionar otra carpeta
+
+xClone utiliza el nombre del repositorio como carpeta de destino. Puede establecerse otro nombre o ruta mediante `--to`:
+
+```powershell
+xclone dexkit --to=mi-kit
+```
+
+También puede utilizarse la opción corta:
+
+```powershell
+xclone dexkit -d mi-kit
+```
+
+<br>
+
+### Seleccionar una rama
+
+Para clonar una rama concreta:
+
+```powershell
+xclone proyecto --branch=develop
+```
+
+O mediante la opción corta:
+
+```powershell
+xclone proyecto -b develop
+```
+
+<br>
+
+### Combinar opciones
+
+Los perfiles y modificadores pueden combinarse en una misma operación:
+
+```powershell
+xclone api-helper store --user=otra-cuenta --branch=develop --to=api-local
+```
+
+<br><br>
+
+## Opciones disponibles
+
+| Opción | Descripción |
+| --- | --- |
+| `store` | Conserva `.git` y el historial completo. |
+| `--store` | Activa el perfil Store. |
+| `--keep-git` | Alias de `--store`. |
+| `--user=<usuario>` | Cambia el propietario únicamente para ese clon. |
+| `-u <usuario>` | Versión corta de `--user`. |
+| `--to=<carpeta>` | Define otra carpeta o ruta de destino. |
+| `-d <carpeta>` | Versión corta de `--to`. |
+| `--branch=<rama>` | Selecciona una rama concreta. |
+| `-b <rama>` | Versión corta de `--branch`. |
+| `--dry-run` | Simula la operación sin clonar ni eliminar archivos. |
+| `--verbose` | Muestra directamente la salida completa de GitHub CLI. |
+| `--no-animation` | Desactiva las animaciones conservando el progreso. |
+| `--no-color` | Desactiva los colores de la terminal. |
+| `--doctor` | Ejecuta el diagnóstico del entorno. |
+| `--version` / `-v` | Muestra la versión instalada. |
+| `--developer` | Muestra la autoría del proyecto. |
+| `--help` / `-h` | Muestra la ayuda integrada. |
+
+<br><br>
+
+## Interfaz y experiencia visual
+
+xClone incluye una interfaz diseñada para Windows Terminal y consolas modernas:
+
+- Banner compacto con identidad de producto.
+- Paleta magenta, violeta y cyan.
+- Jerarquías tipográficas mediante estilos bold, italic y dim.
+- Paneles de información antes y después del clon.
+- Barra de progreso basada en fases realmente completadas.
+- Animación activa mientras el proceso `gh repo clone` continúa ejecutándose.
+- Mensajes diferenciados para éxito, advertencia y error.
+- Degradación automática a texto sencillo cuando la terminal no soporta color o animaciones.
+
+Las animaciones pueden desactivarse en cualquier momento:
+
+```powershell
+xclone repositorio --no-animation
+```
+
+<br><br>
+
+## Simulación y diagnóstico
+
+Antes de realizar una clonación, puedes revisar el comando que xClone ejecutaría utilizando `--dry-run`:
+
+```powershell
+xclone dexkit --dry-run
+```
+
+La simulación muestra el usuario, destino, perfil y comando final sin modificar ningún archivo.
+
+Para comprobar el estado general del sistema:
+
+```powershell
+xclone --doctor
+```
+
+<br><br>
+
+## Manejo de errores
+
+xClone incluye un sistema unificado de validación y manejo de errores. Si GitHub CLI devuelve información técnica, el CLI conserva las últimas líneas relevantes y las presenta al usuario.
+
+No se elimina ninguna carpeta parcial cuando GitHub CLI falla. Esto permite revisar el contenido descargado antes de decidir qué hacer con él.
+
+<br>
+
+## Errores comunes
+
+### 1) Node.js no fue encontrado durante la instalación
+
+Este mensaje aparece cuando Node.js no está instalado o cuando VS Code fue abierto antes de que Node.js se agregara al `PATH` de Windows.
+
+Comprueba primero:
+
+```powershell
+node --version
+```
+
+Si el comando no existe, instala la versión LTS mediante:
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+```
+
+Después de instalarlo, cierra completamente VS Code, vuelve a abrirlo y ejecuta:
+
+```powershell
+.\install.cmd
+```
+
+xClone requiere Node.js `18` o superior.
+
+<br>
+
+### 2) GitHub CLI no fue encontrado
+
+Este error ocurre cuando `gh` no está instalado o no se encuentra disponible dentro de `PATH`.
+
+Instala GitHub CLI, abre una terminal nueva y ejecuta:
+
+```powershell
+gh --version
+gh auth login
+```
+
+<br>
+
+### 3) GitHub no tiene una sesión activa
+
+Puede aparecer cuando se intenta clonar un repositorio privado sin haber iniciado sesión.
+
+Ejecuta:
+
+```powershell
+gh auth login
+```
+
+Después confirma el estado con:
+
+```powershell
+xclone --doctor
+```
+
+<br>
+
+### 4) La carpeta de destino ya existe
+
+xClone nunca reemplaza, limpia ni mezcla automáticamente una carpeta existente.
+
+Puedes seleccionar otra ubicación mediante:
+
+```powershell
+xclone dexkit --to=dexkit-copia
+```
+
+<br>
+
+### 5) El repositorio no fue encontrado
+
+Este error puede ocurrir cuando el nombre está escrito incorrectamente, el propietario seleccionado no contiene el repositorio o la cuenta autenticada no tiene permisos.
+
+Consulta el propietario actual:
+
+```powershell
+xclone config
+```
+
+O prueba temporalmente con otra cuenta:
+
+```powershell
+xclone repositorio --user=otro-propietario
+```
+
+<br>
+
+### 6) El repositorio fue clonado, pero `.git` no pudo eliminarse
+
+xClone conserva la carpeta completa y detiene la operación sin intentar eliminar otros archivos. Generalmente ocurre cuando otro programa mantiene abierto un archivo dentro de `.git` o cuando Windows bloquea temporalmente el acceso.
+
+Cierra editores o procesos que estén utilizando el repositorio y vuelve a intentarlo con otro destino.
+
+<br>
+
+### 7) Los colores o caracteres no aparecen correctamente
+
+Se recomienda utilizar Windows Terminal, PowerShell moderno o una terminal compatible con UTF-8.
+
+También puedes iniciar xClone sin elementos visuales avanzados:
+
+```powershell
+xclone repositorio --no-color --no-animation
+```
+
+<br><br>
+
+## Seguridad del proceso
+
+- Los nombres del repositorio y propietario son validados antes de ejecutar GitHub CLI.
+- Los argumentos no pasan por un intérprete de comandos durante la clonación.
+- La raíz del disco no puede utilizarse como destino.
+- Una carpeta existente nunca es sobrescrita.
+- xClone solo elimina `.git` dentro del destino que acaba de crear.
+- Los reintentos de eliminación están limitados y controlados.
+- Una clonación fallida nunca provoca la limpieza automática del destino parcial.
+
+<br><br>
+
+## Obtener información del paquete
+
+Puedes consultar la versión instalada utilizando:
+
+```powershell
+xclone --version
+```
+
+La respuesta utiliza el siguiente formato:
+
+```text
+xclone 7.1.2
+```
+
+La información general del paquete corresponde a:
+
+```json
+{
+  "name": "@dexly/xclone",
+  "version": "7.1.2",
+  "runtime": "Node.js >=18",
+  "developer": "Roger Salinas",
+  "brand": "Dexly",
+  "platform": "Windows 10/11",
+  "license": "UNLICENSED"
+}
+```
+
+También puedes consultar la información del desarrollador mediante:
+
+```powershell
+xclone --developer
+```
+
+<br>
 
 ## Desinstalación
 
-Ejecuta `uninstall.cmd` o usa:
+Ejecuta el archivo incluido:
+
+```powershell
+uninstall.cmd
+```
+
+O elimina el paquete global mediante npm:
 
 ```powershell
 npm uninstall -g @dexly/xclone
 ```
 
----
+La configuración del usuario se conserva para futuras instalaciones.
 
-Desarrollado por Roger Salinas para Dexly.  
-Build without limits.
+<br><br>
+
+## Información final del proyecto
+
+- <a href="https://github.com/salinxlg">Roger Salinas</a> es el creador y desarrollador de xClone.
+- La versión actual de xClone es `v7.1.2`.
+- El proyecto utiliza Node.js, npm, Git y GitHub CLI.
+- Puede ejecutarse como comando global o directamente mediante `xclone.cmd`.
+- © 2026 Roger Salinas, Dexly. Todos los derechos reservados.
+
+<br><br><br>
+
+<div align="center">
+
+  <img src="https://github.com/salinxlg/HelloAuth/raw/main/docs/sign.svg" alt="Roger Salinas" width="205">
+
+</div>

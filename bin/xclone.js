@@ -81,7 +81,7 @@ function normalizeBranch(value) {
 
 function getConfigPath(environment = process.env, homeDirectory = os.homedir()) {
   if (environment.APPDATA) {
-    return path.join(environment.APPDATA, 'Dexly', 'XClone', 'config.json');
+    return path.join(environment.APPDATA, 'Dexly', 'xClone', 'config.json');
   }
 
   return path.join(homeDirectory, '.config', 'xclone', 'config.json');

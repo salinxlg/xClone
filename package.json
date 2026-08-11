@@ -1,6 +1,6 @@
 {
   "name": "@dexly/xclone",
-  "version": "7.1.0",
+  "version": "7.1.2",
   "description": "Clonador rapido de repositorios de GitHub para el flujo de trabajo de Dexly.",
   "private": true,
   "bin": {

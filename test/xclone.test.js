@@ -104,7 +104,7 @@ test('la version y la ayuda funcionan sin GitHub CLI', () => {
   const help = spawnSync(process.execPath, [executable, '--help'], { encoding: 'utf8' });
 
   assert.equal(version.status, 0);
-  assert.match(version.stdout, /^xclone 7\.1\.0/u);
+  assert.match(version.stdout, /^xclone 7\.1\.2/u);
   assert.equal(help.status, 0);
   assert.match(help.stdout, /xclone <repo> store/u);
 });
