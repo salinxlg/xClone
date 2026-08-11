@@ -1,0 +1,23 @@
+{
+  "name": "@dexly/xclone",
+  "version": "7.1.0",
+  "description": "Clonador rapido de repositorios de GitHub para el flujo de trabajo de Dexly.",
+  "private": true,
+  "bin": {
+    "xclone": "./bin/xclone.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "*.cmd"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "Roger Salinas - Dexly",
+  "license": "UNLICENSED"
+}
