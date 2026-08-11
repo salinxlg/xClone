@@ -7,6 +7,8 @@ const readline = require('node:readline/promises');
 const { spawn, spawnSync } = require('node:child_process');
 const packageInfo = require('../package.json');
 const {
+  PRODUCT_AUTHOR,
+  PRODUCT_VENDOR,
   normalizeUser,
   readUserConfig,
   saveDefaultUser
@@ -123,6 +125,7 @@ async function install() {
   printBrand(painter, packageInfo.version, 'Instalación para Windows.');
   console.log(`  ${painter.bold('Configura tu identidad de GitHub')}`);
   console.log(`  ${painter.dim('xClone usará este usuario cuando no envíes --user.')}\n`);
+  console.log(`  ${painter.dim(`${PRODUCT_VENDOR} · Creado por ${PRODUCT_AUTHOR}`)}\n`);
 
   if (!Number.isInteger(nodeMajor) || nodeMajor < 18) {
     throw new Error(
@@ -146,6 +149,7 @@ async function install() {
   printResultCard(painter, `xClone ${packageInfo.version} está listo`, [
     `Usuario predeterminado: @${saved.user}`,
     ghReady ? 'GitHub CLI detectado.' : 'Pendiente: instala GitHub CLI (gh).',
+    `${PRODUCT_VENDOR} · ${PRODUCT_AUTHOR}`,
     'Siguiente paso: xclone --doctor'
   ]);
   console.log('');

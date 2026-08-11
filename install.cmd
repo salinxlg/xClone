@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 chcp 65001 >nul 2>&1
-title xClone 7.1.2 - Instalador
+title xClone 7.2.1 - Instalador
 
 where.exe node.exe >nul 2>&1 || goto :NODE_MISSING
 

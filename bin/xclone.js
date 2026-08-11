@@ -19,6 +19,10 @@ const {
 } = require('../lib/ui');
 
 const DEFAULT_USER = 'salinxlg';
+const MANIFEST_FILENAME = 'xclone.json';
+const MANIFEST_SCHEMA_VERSION = 1;
+const PRODUCT_AUTHOR = 'Roger Salinas';
+const PRODUCT_VENDOR = 'Dexly Studios';
 const MINIMUM_NODE_MAJOR = 18;
 const MAX_CAPTURED_OUTPUT = 384 * 1024;
 
@@ -116,6 +120,224 @@ function saveDefaultUser(value, configPath = getConfigPath()) {
   return { configPath, user };
 }
 
+function getManifestPath(requestedPath = null, baseDirectory = process.cwd()) {
+  return path.resolve(baseDirectory, requestedPath || MANIFEST_FILENAME);
+}
+
+function createManifestData(defaultUser = DEFAULT_USER) {
+  return {
+    schemaVersion: MANIFEST_SCHEMA_VERSION,
+    name: 'Dexly Studios Workspace',
+    author: PRODUCT_AUTHOR,
+    vendor: PRODUCT_VENDOR,
+    defaults: {
+      user: normalizeUser(defaultUser)
+    },
+    repositories: []
+  };
+}
+
+function createManifestFile(manifestPath, defaultUser = DEFAULT_USER) {
+  if (fs.existsSync(manifestPath)) {
+    throw new XCloneError(`El manifiesto ya existe y no fue modificado:\n  ${manifestPath}`);
+  }
+
+  const manifest = createManifestData(defaultUser);
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  return manifest;
+}
+
+function normalizeManifestLabel(value, fieldName, fallback) {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'string') {
+    throw new XCloneError(`El campo ${fieldName} de ${MANIFEST_FILENAME} debe ser texto.`);
+  }
+  const normalized = cleanOptionValue(value, fieldName);
+  if (normalized.length > 100) {
+    throw new XCloneError(`El campo ${fieldName} de ${MANIFEST_FILENAME} es demasiado largo.`);
+  }
+  return normalized;
+}
+
+function loadManifest(manifestPath, fallbackUser = DEFAULT_USER, globalUser = null) {
+  let manifest;
+
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      throw new XCloneError(
+        `No encontré ${path.basename(manifestPath)} en:\n  ${manifestPath}\nEjecuta xclone init para crearlo.`
+      );
+    }
+    throw new XCloneError(`No pude leer ${manifestPath}: ${error.message}`);
+  }
+
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    throw new XCloneError(`${MANIFEST_FILENAME} debe contener un objeto JSON.`);
+  }
+
+  if (manifest.schemaVersion !== MANIFEST_SCHEMA_VERSION) {
+    throw new XCloneError(
+      `schemaVersion debe ser ${MANIFEST_SCHEMA_VERSION} en ${MANIFEST_FILENAME}.`
+    );
+  }
+
+  if (!Array.isArray(manifest.repositories)) {
+    throw new XCloneError(`repositories debe ser un arreglo en ${MANIFEST_FILENAME}.`);
+  }
+
+  const defaults = manifest.defaults === undefined ? {} : manifest.defaults;
+  if (!defaults || typeof defaults !== 'object' || Array.isArray(defaults)) {
+    throw new XCloneError(`defaults debe ser un objeto en ${MANIFEST_FILENAME}.`);
+  }
+
+  const defaultUser = globalUser
+    ? normalizeUser(globalUser)
+    : defaults.user
+      ? normalizeUser(defaults.user)
+      : normalizeUser(fallbackUser);
+  const baseDirectory = path.dirname(manifestPath);
+  const repositories = manifest.repositories.map((entry, index) => {
+    const position = index + 1;
+    const item = typeof entry === 'string' ? { repo: entry } : entry;
+
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new XCloneError(`El repositorio #${position} de ${MANIFEST_FILENAME} no es válido.`);
+    }
+
+    if (item.enabled !== undefined && typeof item.enabled !== 'boolean') {
+      throw new XCloneError(`enabled debe ser true o false en el repositorio #${position}.`);
+    }
+
+    const mode = item.mode === undefined ? 'kit' : String(item.mode).toLowerCase();
+    if (mode !== 'kit' && mode !== 'store') {
+      throw new XCloneError(`mode debe ser "kit" o "store" en el repositorio #${position}.`);
+    }
+
+    return {
+      baseDirectory,
+      branch: item.branch === undefined ? null : normalizeBranch(item.branch),
+      destination:
+        item.to === undefined && item.destination === undefined
+          ? null
+          : cleanOptionValue(item.to ?? item.destination, 'to'),
+      enabled: item.enabled !== false,
+      keepGit: mode === 'store',
+      mode,
+      repo: normalizeRepo(item.repo),
+      sourceIndex: position,
+      user: globalUser
+        ? normalizeUser(globalUser)
+        : item.user
+          ? normalizeUser(item.user)
+          : defaultUser
+    };
+  });
+
+  return {
+    author: normalizeManifestLabel(manifest.author, 'author', PRODUCT_AUTHOR),
+    baseDirectory,
+    defaultUser,
+    manifestPath,
+    name: normalizeManifestLabel(manifest.name, 'name', 'Dexly Studios Workspace'),
+    repositories,
+    vendor: normalizeManifestLabel(manifest.vendor, 'vendor', PRODUCT_VENDOR)
+  };
+}
+
+function writeManifestFile(manifestPath, manifest) {
+  const temporaryPath = `${manifestPath}.${process.pid}.${Date.now()}.tmp`;
+
+  try {
+    fs.writeFileSync(temporaryPath, `${JSON.stringify(manifest, null, 2)}\n`, {
+      encoding: 'utf8',
+      flag: 'wx'
+    });
+    fs.renameSync(temporaryPath, manifestPath);
+  } catch (error) {
+    try {
+      fs.rmSync(temporaryPath, { force: true });
+    } catch {
+      // El archivo temporal se limpiará en el siguiente mantenimiento del sistema.
+    }
+    throw error;
+  }
+}
+
+function registerCloneInManifest(
+  config,
+  manifestPath = getManifestPath(config.manifest),
+  fallbackUser = DEFAULT_USER,
+  clonedDestination = destinationPath(config)
+) {
+  if (!fs.existsSync(manifestPath)) {
+    return { manifestPath, status: 'missing' };
+  }
+
+  const loaded = loadManifest(manifestPath, fallbackUser);
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const repository = {
+    repo: config.repo,
+    mode: config.keepGit ? 'store' : 'kit'
+  };
+
+  if (config.user !== loaded.defaultUser) repository.user = config.user;
+  if (config.branch) repository.branch = config.branch;
+
+  const resolvedDestination = path.resolve(clonedDestination);
+  const defaultDestination = path.resolve(loaded.baseDirectory, config.repo);
+  const comparableDestination = process.platform === 'win32'
+    ? resolvedDestination.toLowerCase()
+    : resolvedDestination;
+  const comparableDefault = process.platform === 'win32'
+    ? defaultDestination.toLowerCase()
+    : defaultDestination;
+
+  if (comparableDestination !== comparableDefault) {
+    repository.to = path.relative(loaded.baseDirectory, resolvedDestination) || config.repo;
+  }
+
+  const existing = loaded.repositories.find(
+    (item) =>
+      item.repo.toLowerCase() === config.repo.toLowerCase() &&
+      item.user.toLowerCase() === config.user.toLowerCase()
+  );
+  let status = 'added';
+
+  if (existing) {
+    const index = existing.sourceIndex - 1;
+    const previous = manifest.repositories[index];
+    const updated = previous && typeof previous === 'object' && !Array.isArray(previous)
+      ? { ...previous }
+      : {};
+
+    for (const field of ['repo', 'mode', 'user', 'branch', 'to', 'destination']) {
+      delete updated[field];
+    }
+    manifest.repositories[index] = { ...repository, ...updated };
+    status = 'updated';
+  } else {
+    manifest.repositories.push(repository);
+  }
+
+  try {
+    writeManifestFile(manifestPath, manifest);
+  } catch (error) {
+    throw new XCloneError(
+      `El repositorio se clonó, pero no pude actualizar ${manifestPath}: ${error.message}`
+    );
+  }
+
+  return {
+    manifestPath,
+    mode: repository.mode,
+    repository,
+    status
+  };
+}
+
 function readFollowingValue(args, index, optionName) {
   const value = args[index + 1];
 
@@ -133,6 +355,7 @@ function parseArgs(args, defaultUser = readUserConfig().user) {
     destination: null,
     dryRun: false,
     keepGit: false,
+    manifest: null,
     noAnimation: false,
     noColor: false,
     repo: null,
@@ -164,6 +387,16 @@ function parseArgs(args, defaultUser = readUserConfig().user) {
 
     if (lower === '--doctor' || lower === 'doctor') {
       config.action = 'doctor';
+      continue;
+    }
+
+    if (lower === 'all') {
+      config.action = 'all';
+      continue;
+    }
+
+    if (lower === 'init') {
+      config.action = 'init';
       continue;
     }
 
@@ -200,6 +433,17 @@ function parseArgs(args, defaultUser = readUserConfig().user) {
 
     if (lower === '--verbose') {
       config.verbose = true;
+      continue;
+    }
+
+    if (lower.startsWith('--manifest=')) {
+      config.manifest = cleanOptionValue(token.slice(token.indexOf('=') + 1), '--manifest');
+      continue;
+    }
+
+    if (lower === '--manifest' || lower === '-m') {
+      config.manifest = readFollowingValue(args, index, '--manifest');
+      index += 1;
       continue;
     }
 
@@ -339,14 +583,20 @@ function ensureCloneRequirements() {
   }
 }
 
-function resolveDestination(config) {
+function destinationPath(config) {
   const requested = config.destination || config.repo;
-  const destination = path.resolve(process.cwd(), requested);
+  const destination = path.resolve(config.baseDirectory || process.cwd(), requested);
   const root = path.parse(destination).root;
 
   if (destination === root) {
     throw new XCloneError('La raíz del disco no puede usarse como destino.');
   }
+
+  return destination;
+}
+
+function resolveDestination(config) {
+  const destination = destinationPath(config);
 
   if (fs.existsSync(destination)) {
     throw new XCloneError(
@@ -383,7 +633,7 @@ function runCloneProcess(ghArgs, config, painter) {
     let output = '';
     let settled = false;
     const child = spawn('gh', ghArgs, {
-      cwd: process.cwd(),
+      cwd: config.baseDirectory || process.cwd(),
       shell: false,
       stdio,
       windowsHide: true
@@ -430,12 +680,19 @@ function runCloneProcess(ghArgs, config, painter) {
   });
 }
 
-async function cloneRepository(config, painter) {
+async function cloneRepository(config, painter, options = {}) {
+  const compact = options.compact === true;
+  const showBrand = options.showBrand !== false;
   const destination = resolveDestination(config);
   const ghArgs = buildGhArgs(config, destination);
   const repository = `${config.user}/${config.repo}`;
 
-  printBrand(painter, packageInfo.version);
+  if (showBrand) {
+    printBrand(painter, packageInfo.version);
+  } else {
+    const position = options.position ? `${options.position.current}/${options.position.total}` : '•';
+    console.log(`\n  ${painter.accent('◆')}  ${painter.bold(position)}  ${repository}`);
+  }
   printInfo(painter, 'ORIGEN', repository);
   printInfo(painter, 'DESTINO', destination);
   printInfo(
@@ -450,10 +707,10 @@ async function cloneRepository(config, painter) {
     console.log(`  ${painter.warning('◆')}  ${painter.bold('Simulación activa')}`);
     console.log(`  ${painter.dim('No se modificó ningún archivo.')}`);
     console.log(`\n  ${painter.dim(printableCommand('gh', ghArgs))}\n`);
-    return 0;
+    return { destination, simulated: true };
   }
 
-  ensureCloneRequirements();
+  if (!config.skipRequirements) ensureCloneRequirements();
   printStep(painter, 1, 3, 'Entorno validado');
   await runCloneProcess(ghArgs, config, painter);
   printStep(painter, 2, 3, 'Repositorio descargado');
@@ -487,13 +744,136 @@ async function cloneRepository(config, painter) {
     3,
     config.keepGit ? 'Historial de Git conservado' : 'Metadatos de Git eliminados'
   );
-  printResultCard(painter, `${config.repo} está listo`, [
-    config.keepGit ? 'Conectado a GitHub en modo Store.' : 'Copia limpia creada sin .git.'
-  ]);
+  if (compact) {
+    console.log(
+      `  ${painter.success('✓')}  ${config.repo} listo · ${config.keepGit ? 'Store' : 'Kit'}`
+    );
+    printInfo(painter, 'UBICACIÓN', destination);
+  } else {
+    printResultCard(painter, `${config.repo} está listo`, [
+      config.keepGit ? 'Conectado a GitHub en modo Store.' : 'Copia limpia creada sin .git.'
+    ]);
+    console.log('');
+    printInfo(painter, 'UBICACIÓN', destination);
+    console.log('');
+  }
+  return { destination, simulated: false };
+}
+
+function runInit(config, painter) {
+  const manifestPath = getManifestPath(config.manifest);
+  const manifest = createManifestFile(manifestPath, config.user);
+
+  printBrand(painter, packageInfo.version, 'Colecciones de repositorios.');
+  printInfo(painter, 'ARCHIVO', manifestPath);
+  printInfo(painter, 'USUARIO', painter.accent(`@${manifest.defaults.user}`));
+  printInfo(painter, 'AUTOR', PRODUCT_AUTHOR);
+  printInfo(painter, 'ESTUDIO', PRODUCT_VENDOR);
   console.log('');
-  printInfo(painter, 'UBICACIÓN', destination);
-  console.log('');
+  console.log(`  ${painter.success('✓')}  ${MANIFEST_FILENAME} fue creado.`);
+  console.log(`  ${painter.dim('Agrega tus repositorios y ejecuta:')} xclone all\n`);
   return 0;
+}
+
+async function cloneAll(config, painter, fallbackUser) {
+  const manifestPath = getManifestPath(config.manifest);
+  const manifest = loadManifest(
+    manifestPath,
+    fallbackUser,
+    config.userExplicit ? config.user : null
+  );
+  const repositories = manifest.repositories.filter((item) => item.enabled);
+
+  if (repositories.length === 0) {
+    throw new XCloneError(
+      `${MANIFEST_FILENAME} no contiene repositorios habilitados. Agrega entradas en repositories.`
+    );
+  }
+
+  const destinations = new Map();
+  for (const repository of repositories) {
+    const resolved = destinationPath(repository);
+    const key = process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+    if (destinations.has(key)) {
+      throw new XCloneError(
+        `Los repositorios #${destinations.get(key)} y #${repository.sourceIndex} usan el mismo destino:\n  ${resolved}`
+      );
+    }
+    destinations.set(key, repository.sourceIndex);
+  }
+
+  printBrand(painter, packageInfo.version, 'Colección de repositorios.');
+  printInfo(painter, 'COLECCIÓN', manifest.name);
+  printInfo(painter, 'MANIFIESTO', manifest.manifestPath);
+  printInfo(painter, 'AUTOR', manifest.author);
+  printInfo(painter, 'ESTUDIO', manifest.vendor);
+  printInfo(painter, 'REPOS', String(repositories.length));
+  console.log('');
+
+  if (!config.dryRun) ensureCloneRequirements();
+
+  const results = {
+    cloned: 0,
+    failed: 0,
+    simulated: 0,
+    skipped: 0
+  };
+
+  for (let index = 0; index < repositories.length; index += 1) {
+    const repository = repositories[index];
+    const repositoryConfig = {
+      ...config,
+      ...repository,
+      action: 'clone',
+      dryRun: config.dryRun,
+      noAnimation: config.noAnimation,
+      noColor: config.noColor,
+      skipRequirements: true,
+      verbose: config.verbose
+    };
+    const resolved = destinationPath(repositoryConfig);
+
+    if (fs.existsSync(resolved)) {
+      results.skipped += 1;
+      console.log(
+        `  ${painter.warning('↷')}  ${painter.bold(`${index + 1}/${repositories.length}`)}  ` +
+          `${repository.user}/${repository.repo} · destino existente`
+      );
+      printInfo(painter, 'UBICACIÓN', resolved);
+      continue;
+    }
+
+    try {
+      const result = await cloneRepository(repositoryConfig, painter, {
+        compact: true,
+        position: { current: index + 1, total: repositories.length },
+        showBrand: false
+      });
+      if (result.simulated) results.simulated += 1;
+      else results.cloned += 1;
+    } catch (error) {
+      results.failed += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`  ${painter.error('✕')}  ${repository.repo} falló`);
+      console.error(`     ${message.replace(/\n/gu, '\n     ')}\n`);
+    }
+  }
+
+  const completedLabel = config.dryRun ? `Simulados: ${results.simulated}` : `Clonados: ${results.cloned}`;
+  const summary = [
+    `${completedLabel} · Omitidos: ${results.skipped}`,
+    `Fallidos: ${results.failed}`,
+    `${PRODUCT_VENDOR} · ${PRODUCT_AUTHOR}`
+  ];
+
+  if (results.failed === 0) {
+    printResultCard(painter, config.dryRun ? 'Simulación completada' : 'Colección completada', summary);
+  } else {
+    console.log(`\n  ${painter.warning('Colección finalizada con errores')}`);
+    for (const line of summary) console.log(`  ${line}`);
+  }
+  console.log('');
+  return results.failed === 0 ? 0 : 1;
 }
 
 function printHelp(painter, defaultUser) {
@@ -503,6 +883,14 @@ function printHelp(painter, defaultUser) {
     xclone <repo>
     xclone <repo> store
     xclone <repo> [opciones]
+    xclone all
+    xclone init
+
+${painter.bold('  COLECCIONES')}
+    xclone init                    Crea xclone.json en la carpeta actual.
+    xclone all                     Clona todo lo definido en xclone.json.
+    xclone <repo>                  Se registra si xclone.json ya existe.
+    --manifest=<archivo>, -m       Utiliza otro manifiesto.
 
 ${painter.bold('  CONFIGURACIÓN')}
     xclone config                  Muestra el usuario guardado.
@@ -530,16 +918,22 @@ ${painter.bold('  OPCIONES')}
 ${painter.bold('  EJEMPLOS')}
     xclone dexkit
     xclone dexly-store store
+    xclone init
+    xclone all
+    xclone all --manifest=equipos.json
     xclone api-helper --user=otra-cuenta
     xclone nataly --to=mi-copia
     xclone proyecto --branch=develop
+
+  ${painter.dim(`${PRODUCT_VENDOR} · Desarrollado por ${PRODUCT_AUTHOR}`)}
 `);
 }
 
 function printDeveloper(painter) {
-  printBrand(painter, packageInfo.version, 'Built by Dexly.');
-  printInfo(painter, 'AUTOR', 'Roger Salinas');
-  printInfo(painter, 'MARCA', 'Dexly');
+  printBrand(painter, packageInfo.version, 'Una herramienta de Dexly Studios.');
+  printInfo(painter, 'AUTOR', PRODUCT_AUTHOR);
+  printInfo(painter, 'ESTUDIO', PRODUCT_VENDOR);
+  printInfo(painter, 'PRODUCTO', 'xClone');
   printInfo(painter, 'LEMA', painter.italic('Build without limits'));
   console.log('');
 }
@@ -597,6 +991,8 @@ function runDoctor(painter, defaultUser) {
 
   printBrand(painter, packageInfo.version, 'Diagnóstico del entorno.');
   printInfo(painter, 'USUARIO', painter.accent(`@${defaultUser}`));
+  printInfo(painter, 'ESTUDIO', PRODUCT_VENDOR);
+  printInfo(painter, 'AUTOR', PRODUCT_AUTHOR);
   console.log('');
   for (const check of checks) {
     const mark = check.ok ? painter.success('✓') : painter.error('✕');
@@ -632,8 +1028,36 @@ async function main(args = process.argv.slice(2)) {
         return runDoctor(painter, saved.user);
       case 'config':
         return runConfig(config, painter);
-      default:
-        return await cloneRepository(config, painter);
+      case 'init':
+        return runInit(config, painter);
+      case 'all':
+        return await cloneAll(config, painter, saved.user);
+      default: {
+        const manifestPath = getManifestPath(config.manifest);
+        const manifestExists = fs.existsSync(manifestPath);
+
+        if (manifestExists || config.manifest) {
+          loadManifest(manifestPath, saved.user);
+        }
+
+        const result = await cloneRepository(config, painter);
+        if (!result.simulated && manifestExists) {
+          const registration = registerCloneInManifest(
+            config,
+            manifestPath,
+            saved.user,
+            result.destination
+          );
+          const action = registration.status === 'added' ? 'Registrado' : 'Actualizado';
+          console.log(
+            `  ${painter.success('✓')}  ${action} en ${path.basename(manifestPath)} · ` +
+              `${registration.mode === 'store' ? 'Store' : 'Kit'}`
+          );
+          printInfo(painter, 'MANIFIESTO', manifestPath);
+          console.log('');
+        }
+        return 0;
+      }
     }
   } catch (error) {
     const colorEnabled = !(config && config.noColor) && supportsColor(process.stderr);
@@ -653,15 +1077,24 @@ if (require.main === module) {
 
 module.exports = {
   DEFAULT_USER,
+  MANIFEST_FILENAME,
+  PRODUCT_AUTHOR,
+  PRODUCT_VENDOR,
   XCloneError,
   buildGhArgs,
   commandStatus,
+  createManifestData,
+  createManifestFile,
+  destinationPath,
   getConfigPath,
+  getManifestPath,
+  loadManifest,
   main,
   normalizeRepo,
   normalizeUser,
   parseArgs,
   readUserConfig,
+  registerCloneInManifest,
   resolveDestination,
   saveDefaultUser
 };

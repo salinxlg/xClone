@@ -14,7 +14,7 @@
 
 Incluye configuración persistente del propietario de GitHub, instalación interactiva, perfiles de clonación, validaciones de seguridad, colores, paneles, progreso por fases y una animación activa durante la descarga del repositorio.<br><br>
 
-Este proyecto ha sido desarrollado por <a href="https://github.com/salinxlg">Roger Salinas</a>.<br>
+Este proyecto ha sido creado y desarrollado por <a href="https://github.com/salinxlg">Roger Salinas</a> para <b>Dexly Studios</b>.<br>
 <b>xClone está optimizado para Windows 10 y Windows 11 mediante Node.js y Batch.</b>
 
 <br>
@@ -41,6 +41,13 @@ Si todos los requisitos están disponibles, puedes realizar el primer clon:
 
 ```powershell
 xclone nombre-del-repositorio
+```
+
+Para administrar una colección completa de kits, stores, API y helpers:
+
+```powershell
+xclone init
+xclone all
 ```
 
 xClone también puede instalarse manualmente desde la carpeta extraída:
@@ -70,6 +77,7 @@ xClone/
 ├── install.cmd
 ├── uninstall.cmd
 ├── xclone.cmd
+├── xclone.example.json
 ├── package.json
 └── README.md
 ```
@@ -80,6 +88,7 @@ xClone/
 - `install.cmd` inicia el instalador desde Windows.
 - `xclone.cmd` permite ejecutar xClone directamente en modo portable.
 - `uninstall.cmd` elimina el comando global instalado mediante npm.
+- `xclone.example.json` muestra cómo declarar colecciones de repositorios.
 - `test/xclone.test.js` contiene las pruebas automatizadas del proyecto.
 
 <br><br>
@@ -155,6 +164,109 @@ xclone config --reset
 
 <br><br>
 
+## Colecciones con xclone.json
+
+El archivo `xclone.json` cumple una función similar a `package.json`: describe todos los repositorios que forman parte de una colección y conserva la forma en que debe clonarse cada uno.
+
+Para crear el manifiesto inicial dentro de la carpeta actual:
+
+```powershell
+xclone init
+```
+
+El archivo generado incluye la autoría de Roger Salinas, Dexly Studios y el usuario de GitHub configurado durante la instalación:
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "Dexly Studios Workspace",
+  "author": "Roger Salinas",
+  "vendor": "Dexly Studios",
+  "defaults": {
+    "user": "salinxlg"
+  },
+  "repositories": []
+}
+```
+
+Desde ese momento no tienes que editar la lista después de cada descarga: cuando `xclone.json` existe, cada `xclone <repo>` exitoso agrega automáticamente el repositorio. Los clones normales se guardan como `kit`; los ejecutados con `store` se guardan como `store`. Si la entrada ya existe para ese propietario, xClone la actualiza sin duplicarla. `--dry-run` nunca modifica el manifiesto.
+
+Puedes registrar kits, stores, API o helpers dentro de `repositories`:
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "Dexly Studios Development Collection",
+  "author": "Roger Salinas",
+  "vendor": "Dexly Studios",
+  "defaults": {
+    "user": "salinxlg"
+  },
+  "repositories": [
+    {
+      "repo": "dexkit",
+      "mode": "kit"
+    },
+    {
+      "repo": "dexly-store",
+      "mode": "store"
+    },
+    {
+      "repo": "api-helper",
+      "mode": "kit",
+      "branch": "develop",
+      "to": "api-local"
+    },
+    {
+      "repo": "legacy-helper",
+      "mode": "kit",
+      "enabled": false
+    }
+  ]
+}
+```
+
+### Campos del manifiesto
+
+| Campo | Descripción |
+| --- | --- |
+| `schemaVersion` | Versión del formato de `xclone.json`. Actualmente debe ser `1`. |
+| `name` | Nombre visible de la colección. |
+| `author` | Autor de la colección. El valor inicial es `Roger Salinas`. |
+| `vendor` | Estudio responsable. El valor inicial es `Dexly Studios`. |
+| `defaults.user` | Usuario u organización utilizado cuando una entrada no define otro. |
+| `repositories` | Lista de repositorios que procesa `xclone all`. |
+| `repo` | Nombre del repositorio dentro de GitHub. |
+| `mode` | `kit` elimina `.git`; `store` conserva el historial completo. |
+| `user` | Propietario opcional para una entrada concreta. |
+| `branch` | Rama opcional que debe quedar seleccionada. |
+| `to` | Carpeta o ruta de destino opcional. |
+| `enabled` | Si es `false`, la entrada se conserva pero no se clona. |
+
+### Clonar la colección completa
+
+Después de configurar el manifiesto, ejecuta:
+
+```powershell
+xclone all
+```
+
+xClone valida todo el archivo antes de comenzar, procesa los repositorios en orden y presenta un resumen final. Las carpetas que ya existen son detectadas y omitidas, permitiendo ejecutar `xclone all` nuevamente sin volver a clonar lo que ya está disponible.
+
+Los destinos relativos se resuelven desde la carpeta que contiene el manifiesto. También puedes utilizar otro archivo:
+
+```powershell
+xclone all --manifest=equipos.json
+```
+
+Para revisar toda la colección sin realizar cambios:
+
+```powershell
+xclone all --dry-run
+```
+
+<br><br>
+
 ## Conexión con GitHub
 
 xClone utiliza la sesión existente de GitHub CLI para acceder a repositorios públicos o privados.
@@ -181,6 +293,9 @@ Actualmente incluye los siguientes comandos:
 
 - `xclone <repo>` → Clona un repositorio como copia limpia y elimina `.git`.
 - `xclone <repo> store` → Clona el repositorio y conserva `.git` junto con su historial.
+- Si existe `xclone.json`, ambos comandos registran o actualizan automáticamente el repositorio.
+- `xclone init` → Crea el manifiesto `xclone.json`.
+- `xclone all` → Clona todos los repositorios habilitados del manifiesto.
 - `xclone config` → Muestra el usuario predeterminado.
 - `xclone config <usuario>` → Guarda un nuevo propietario predeterminado.
 - `xclone --doctor` → Comprueba el entorno y la autenticación.
@@ -493,7 +608,7 @@ xclone --version
 La respuesta utiliza el siguiente formato:
 
 ```text
-xclone 7.1.2
+xclone 7.2.1
 ```
 
 La información general del paquete corresponde a:
@@ -501,10 +616,10 @@ La información general del paquete corresponde a:
 ```json
 {
   "name": "@dexly/xclone",
-  "version": "7.1.2",
+  "version": "7.2.1",
   "runtime": "Node.js >=18",
   "developer": "Roger Salinas",
-  "brand": "Dexly",
+  "vendor": "Dexly Studios",
   "platform": "Windows 10/11",
   "license": "UNLICENSED"
 }
@@ -539,10 +654,12 @@ La configuración del usuario se conserva para futuras instalaciones.
 ## Información final del proyecto
 
 - <a href="https://github.com/salinxlg">Roger Salinas</a> es el creador y desarrollador de xClone.
-- La versión actual de xClone es `v7.1.2`.
+- xClone es una herramienta desarrollada para Dexly Studios.
+- La versión actual de xClone es `v7.2.1`.
 - El proyecto utiliza Node.js, npm, Git y GitHub CLI.
+- Las colecciones se definen mediante `xclone.json` y pueden restaurarse con `xclone all`.
 - Puede ejecutarse como comando global o directamente mediante `xclone.cmd`.
-- © 2026 Roger Salinas, Dexly. Todos los derechos reservados.
+- © 2026 Roger Salinas, Dexly Studios. Todos los derechos reservados.
 
 <br><br><br>
 
