@@ -15,13 +15,41 @@
 Incluye configuración persistente del propietario de GitHub, instalación interactiva, perfiles de clonación, validaciones de seguridad, colores, paneles, progreso por fases y una animación activa durante la descarga del repositorio.<br><br>
 
 Este proyecto ha sido creado y desarrollado por <a href="https://github.com/salinxlg">Roger Salinas</a> para <b>Dexly Studios</b>.<br>
-<b>xClone está optimizado para Windows 10 y Windows 11 mediante Node.js y Batch.</b>
+<b>xClone funciona en Windows y macOS mediante Node.js; cada sistema tiene sus propios scripts de instalación.</b>
 
 <br>
 
 </div>
 
-## Inicio rápido
+## Inicio rápido en macOS
+
+Instala Node.js 18 o superior, Git y GitHub CLI (`gh`). Si utilizas Homebrew, puedes instalar los requisitos con `brew install node git gh`. Después, desde Terminal, entra en la carpeta extraída y ejecuta:
+
+```sh
+sh install.sh
+```
+
+Selecciona tu usuario de GitHub. Abre otra terminal para que se actualice el `PATH`, inicia sesión y comprueba el entorno:
+
+```sh
+gh auth login
+xclone --doctor
+xclone nombre-del-repositorio
+```
+
+El instalador instala una copia independiente; cuando confirmes `xclone --version`, puedes borrar el ZIP y la carpeta extraída. Si `xclone` no se encuentra tras instalarlo, comprueba que el directorio global de npm esté en tu `PATH` con `npm prefix -g` y vuelve a abrir Terminal. Para ejecutar el paquete sin instalarlo globalmente, usa `sh xclone.sh nombre-del-repositorio`. Para desinstalarlo, usa `sh uninstall.sh`. La configuración permanece en `~/.config/xclone/config.json`.
+
+Si npm devuelve `EACCES` al instalar en `/usr/local`, configura un prefijo de npm para tu usuario:
+
+```sh
+mkdir -p "$HOME/.npm-global"
+npm config set prefix "$HOME/.npm-global"
+echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.zprofile"
+export PATH="$HOME/.npm-global/bin:$PATH"
+sh install.sh
+```
+
+## Inicio rápido en Windows
 
 Descarga y extrae el paquete completo de xClone. Después, ejecuta el instalador:
 
@@ -50,10 +78,11 @@ xclone init
 xclone all
 ```
 
-xClone también puede instalarse manualmente desde la carpeta extraída:
+xClone también puede instalarse manualmente desde la carpeta extraída. Empaqueta e instala el archivo generado para que el comando no dependa de esa carpeta:
 
-```powershell
-npm install -g .
+```sh
+npm pack
+npm install -g ./dexly-xclone-7.2.1.tgz
 ```
 
 <br>
@@ -74,9 +103,9 @@ xClone/
 ├── test/
 │   └── xclone.test.js
 │
-├── install.cmd
-├── uninstall.cmd
-├── xclone.cmd
+├── install.cmd / install.sh
+├── uninstall.cmd / uninstall.sh
+├── xclone.cmd / xclone.sh
 ├── xclone.example.json
 ├── package.json
 └── README.md
@@ -85,10 +114,10 @@ xClone/
 - `bin/xclone.js` contiene el motor principal del CLI.
 - `bin/install.js` controla la instalación interactiva y la selección del usuario.
 - `lib/ui.js` contiene la interfaz, colores, paneles, barras y animaciones.
-- `install.cmd` inicia el instalador desde Windows.
-- `xclone.cmd` permite ejecutar xClone directamente en modo portable.
-- `uninstall.cmd` elimina el comando global instalado mediante npm.
-- `xclone.example.json` muestra cómo declarar colecciones de repositorios.
+- `install.cmd` y `install.sh` inician el instalador en Windows y macOS, respectivamente.
+- `xclone.cmd` y `xclone.sh` permiten ejecutar xClone directamente en modo portable.
+- `uninstall.cmd` y `uninstall.sh` eliminan el comando global instalado mediante npm.
+- `xclone.example.json` es un ejemplo de manifiesto para colecciones; `xclone init` crea uno propio.
 - `test/xclone.test.js` contiene las pruebas automatizadas del proyecto.
 
 <br><br>
@@ -126,6 +155,8 @@ El usuario elegido durante la instalación se almacena en Windows dentro de:
 ```text
 %APPDATA%\Dexly\xClone\config.json
 ```
+
+En macOS se almacena en `~/.config/xclone/config.json`.
 
 El archivo contiene una estructura similar a la siguiente:
 

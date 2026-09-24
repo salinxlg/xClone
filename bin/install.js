@@ -3,6 +3,8 @@
 'use strict';
 
 const path = require('node:path');
+const fs = require('node:fs');
+const os = require('node:os');
 const readline = require('node:readline/promises');
 const { spawn, spawnSync } = require('node:child_process');
 const packageInfo = require('../package.json');
@@ -27,7 +29,7 @@ const {
 function npmInvocation(args) {
   if (process.platform === 'win32') {
     return {
-      args: ['/d', '/s', '/c', `npm ${args.join(' ')}`],
+      args: ['/d', '/s', '/c', `npm ${args.map((arg) => `"${arg.replace(/"/g, '""')}"`).join(' ')}`],
       command: process.env.ComSpec || 'cmd.exe'
     };
   }
@@ -72,10 +74,9 @@ async function askForUser(painter, currentUser) {
   }
 }
 
-function installPackage(painter) {
+function installArchive(archivePath, packageRoot, painter) {
   return new Promise((resolve, reject) => {
-    const packageRoot = path.resolve(__dirname, '..');
-    const invocation = npmInvocation(['install', '-g', '.', '--no-audit', '--no-fund']);
+    const invocation = npmInvocation(['install', '-g', archivePath, '--no-audit', '--no-fund']);
     const activity = createActivity(
       'Instalando comando global',
       painter,
@@ -117,12 +118,37 @@ function installPackage(painter) {
   });
 }
 
+async function installPackage(painter) {
+  const packageRoot = path.resolve(__dirname, '..');
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'xclone-install-'));
+  try {
+    // Installing an archive copies the package; installing "." may link to this folder.
+    const invocation = npmInvocation(['pack', '--silent', '--pack-destination', temporaryDirectory]);
+    const packed = spawnSync(invocation.command, invocation.args, {
+      cwd: packageRoot,
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true
+    });
+    if (packed.error || packed.status !== 0) {
+      throw new Error(packed.stderr?.trim() || packed.error?.message || 'npm no pudo preparar el paquete.');
+    }
+    const archiveName = packed.stdout.trim().split(/\r?\n/u).at(-1);
+    if (!archiveName || path.basename(archiveName) !== archiveName || !archiveName.endsWith('.tgz')) {
+      throw new Error('npm no devolvió un archivo de instalación válido.');
+    }
+    await installArchive(path.join(temporaryDirectory, archiveName), packageRoot, painter);
+  } finally {
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+}
+
 async function install() {
   const painter = createPainter(supportsColor());
   const current = readUserConfig();
   const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
 
-  printBrand(painter, packageInfo.version, 'Instalación para Windows.');
+  printBrand(painter, packageInfo.version, `Instalación para ${process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Unix'}.`);
   console.log(`  ${painter.bold('Configura tu identidad de GitHub')}`);
   console.log(`  ${painter.dim('xClone usará este usuario cuando no envíes --user.')}\n`);
   console.log(`  ${painter.dim(`${PRODUCT_VENDOR} · Creado por ${PRODUCT_AUTHOR}`)}\n`);

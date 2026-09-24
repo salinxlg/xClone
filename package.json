@@ -11,7 +11,8 @@
     "lib",
     "README.md",
     "xclone.example.json",
-    "*.cmd"
+    "*.cmd",
+    "*.sh"
   ],
   "scripts": {
     "test": "node --test"

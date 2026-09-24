@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "Dexly Studios Workspace",
+  "author": "Roger Salinas",
+  "vendor": "Dexly Studios",
+  "defaults": { "user": "salinxlg" },
+  "repositories": [
+    { "repo": "dexkit", "mode": "kit" },
+    { "repo": "dexly-store", "mode": "store" }
+  ]
+}
